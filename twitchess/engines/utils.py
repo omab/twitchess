@@ -12,12 +12,6 @@ class Reader(object):
         self.lock = threading.Condition()
         self.buff = []
 
-    def truncate(self):
-        """Truncates buffer to 0 length"""
-        self.lock.acquire()
-        self.buff = []
-        self.lock.release()
-
     def readlines(self):
         """Reads lines in buffer"""
         self.lock.acquire()
@@ -36,21 +30,21 @@ class Reader(object):
         self.lock.notify()
         self.lock.release()
 
-def read(subprocess):
-    try:
-        while subprocess.is_alive():
-            yield subprocess.process.stdout.readline()
-    except IOError:
-        pass
-    raise StopIteration
-
 
 def pipe_reader(subprocess):
     """Reads from subprocess stdout pipe and writes to it's io buffer."""
+    def _read(subprocess):
+        try:
+            while subprocess.is_alive():
+                yield subprocess.process.stdout.readline()
+        except IOError: # no more data to read
+            pass
+        raise StopIteration
+
+    fileno = [subprocess.process.stdout.fileno()]
     while subprocess.is_alive():
-        subprocess.process.stdout.flush()
-        select([subprocess.process.stdout.fileno()], [], [])
-        subprocess.reader.writelines([ line for line in read(subprocess) ])
+        select(fileno, [], []) # block until there's something to read
+        subprocess.reader.writelines([line for line in _read(subprocess)])
 
 class SubProcess(object):
     """Chess engine base class"""
@@ -92,15 +86,8 @@ class SubProcess(object):
             self._reader_thread = thread
         return self._process
 
-    def flush(self):
-        """Flushes stdout. Pipes doesn't support flush, we read until the
-        end."""
-        self.reader.truncate()
-
-    def write(self, msg, flush=False):
+    def write(self, msg):
         """Writes msg to process stdin."""
-        if flush:
-            self.flush()
         self.process.stdin.write(msg + '\n')
 
     def read(self):
@@ -113,3 +100,33 @@ class SubProcess(object):
         self._reader_thread.join()
         self._reader_thread = None
         self._process = None
+
+
+
+def crafty_board(lines):
+    """Convert simple chess board to Crafty richer format."""
+    row_sep = '   +---+---+---+---+---+---+---+---+'
+    board = [
+        ['8  ', '   ', ' . ', '   ', ' . ', '   ', ' . ', '   ', ' . '],
+        ['7  ', ' . ', '   ', ' . ', '   ', ' . ', '   ', ' . ', '   '],
+        ['6  ', '   ', ' . ', '   ', ' . ', '   ', ' . ', '   ', ' . '],
+        ['5  ', ' . ', '   ', ' . ', '   ', ' . ', '   ', ' . ', '   '],
+        ['4  ', '   ', ' . ', '   ', ' . ', '   ', ' . ', '   ', ' . '],
+        ['3  ', ' . ', '   ', ' . ', '   ', ' . ', '   ', ' . ', '   '],
+        ['2  ', '   ', ' . ', '   ', ' . ', '   ', ' . ', '   ', ' . '],
+        ['1  ', ' . ', '   ', ' . ', '   ', ' . ', '   ', ' . ', '   ']
+    ]
+
+    for row, line in enumerate(lines):
+        for col, char in enumerate(line.replace(' ', '')):
+            if char.lower() in 'rnbqkp':
+                if char in 'rnbqkp':
+                    char = '<' + char.upper() + '>'
+                elif char in 'RNBQKP':
+                    char = '-' + char + '-'
+                # avoid first col in board which is row number
+                board[row][col + 1] = char
+
+    return row_sep + '\n' + ('\n' + row_sep + '\n').join(
+            ['|'.join(row) + '|' for row in board] +
+            ['     a   b   c   d   e   f   g   h  '])

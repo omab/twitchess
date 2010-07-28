@@ -6,3 +6,6 @@ class GameExistsError(GameError):
 
 class InvalidMove(GameError):
     """Move was invalid"""
+
+class UnknowError(GameError):
+    """An unknow error has ocurred"""

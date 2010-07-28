@@ -1,14 +1,45 @@
-from engines.utils import SubProcess
+from os.path import sep
+
+from twitchess.exceptions import InvalidMove, UnknowError
+from twitchess.engines.utils import SubProcess
+
+
+INVALID_MOVE, UNKNOW_ERROR = 1, 2
+
+
+def raise_invalid_move(*args, **kwargs):
+    """Raises InvalidMove exception"""
+    raise InvalidMove, 'An invalid move was passed'
+
+def raise_unknow_error(*args, **kwargs):
+    """Raises InvalidMove exception"""
+    raise UnknowError, 'An error has ocurred'
 
 
 class ChessEngine(object):
     """Simple Chess Engine Protocol (tm) ;)."""
-    def __init__(self, path, args=None):
+    def __init__(self, name, path, args=None):
         """Inits process"""
+        self.is_white = True # engines start with white user by default
+        self.name = name
+        self.path = path
+        self.args = args
+        self.moves = []
         self.process = SubProcess(path, args)
 
     def move(self, pos):
-        """Move method."""
+        """Move method. Try to not override this, override do_move
+        instead."""
+        try:
+            result = self.do_move(pos)
+        except InvalidMove: # pretify error
+            raise InvalidMove, '%s is an invalid move' % pos
+        self.moves.append((pos, result))
+        return result
+
+    def do_move(self, pos):
+        """Move method. Return engine result or return False on invalid
+        move or error."""
         raise NotImplementedError
 
     def display(self):
@@ -19,25 +50,21 @@ class ChessEngine(object):
         """Starts a new game."""
         raise NotImplementedError
 
-    def name(self, name):
-        """Set users name."""
-        raise NotImplementedError
-
     def end(self):
         """Ends game."""
         self.process.kill()
 
-    def write(self, msg, flush=False):
+    def write(self, msg):
         """Write msg to process"""
-        self.process.write(msg, flush)
+        self.process.write(msg)
 
     def read(self):
         """Reads process output"""
         return self.process.read()
 
-    def clear(self):
-        """Simulates a clear on process output"""
-        self.process.flush()
+    def __str__(self):
+        """Returns name."""
+        return '%s vs. %s' % (self.name, self.path.split(sep)[-1])
 
     def expect(self, regex_mapping):
         """
@@ -50,8 +77,7 @@ class ChessEngine(object):
         """
         while self.process.is_alive():
             lines = self.read()
-            if lines:
-                for regex, func in regex_mapping:
-                    result = filter(regex.findall, lines)
-                    if result:
-                        return func(result)
+            for regex, func in regex_mapping:
+                result = filter(regex.findall, lines)
+                if result:
+                    return func(result)

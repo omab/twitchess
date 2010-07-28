@@ -83,9 +83,9 @@ class MovesManager(object):
 
 
 class PlayQueue(object):
-    def __init__(self):
+    def __init__(self, notify_handler=notify):
         self.games = {}
-        self.mm = MovesManager(notify)
+        self.mm = MovesManager(notify_handler)
 
     def new(self, name, engine=GNUChess):
         """
