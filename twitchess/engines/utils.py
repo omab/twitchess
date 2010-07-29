@@ -25,9 +25,7 @@ class Reader(object):
 
     def truncate(self):
         """Truncates read data to nothing."""
-        self.lock.acquire()
         self.buff = []
-        self.lock.release()
 
     def writelines(self, lines):
         """Writes lines in buffer"""
