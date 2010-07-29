@@ -23,6 +23,12 @@ class Reader(object):
         self.lock.release()
         return result
 
+    def truncate(self):
+        """Truncates read data to nothing."""
+        self.lock.acquire()
+        self.buff = []
+        self.lock.release()
+
     def writelines(self, lines):
         """Writes lines in buffer"""
         self.lock.acquire()
@@ -93,6 +99,10 @@ class SubProcess(object):
     def read(self):
         """Reads process stdout."""
         return self.reader.readlines()
+
+    def truncate(self):
+        """Truncate read data."""
+        self.reader.truncate()
 
     def kill(self):
         """Kills process"""

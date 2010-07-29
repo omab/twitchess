@@ -45,8 +45,10 @@ class ChessEngine(object):
         """Ends game."""
         self.process.kill()
 
-    def write(self, msg):
+    def write(self, msg, truncate=True):
         """Write msg to process"""
+        if truncate:
+            self.process.truncate()
         self.process.write(msg)
 
     def read(self):

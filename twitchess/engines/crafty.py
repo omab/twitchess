@@ -32,6 +32,7 @@ BOARD_RE   = re.compile('^[ \|1-8<>\+\-a-h\.RNBQKP]+$')      # board
 ILLEGAL_RE = re.compile('^Illegal move')                     # illegal
 MYMOVE_RE  = re.compile('Black\(\d+\): [RNBQKP]?[a-h][1-8]') # maching
 PROMPT_RE  = re.compile('^(White|Black)\(\d+\):')            # prompt
+FEN_RE     = re.compile('^setboard .*')                      # FEN
 
 
 class Crafty(ChessEngine):
@@ -64,6 +65,16 @@ class Crafty(ChessEngine):
         """Ends game."""
         self.write('end')
         super(Crafty, self).end()
+
+    def fen(self):
+        """Reads FEN notation from Crafty. Appends completes moves at end."""
+        self.write('savepos')
+        out = self.expect(((FEN_RE, lambda result: result),
+                           (ILLEGAL_RE, self.illegal),
+                           (PROMPT_RE, self.unknow)))
+        if out:
+            moves = ' 0 %d' % len(self.moves)
+            return out[0].replace('setboard ', '').replace('\n', '') + moves
 
     def do_move(self, pos):
         self.write(pos)
