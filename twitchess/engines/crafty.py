@@ -1,7 +1,7 @@
 import re
 
-from twitchess.engines.base import ChessEngine, raise_invalid_move, \
-                                   raise_unknow_error
+from twitchess.engines.base import ChessEngine
+from twitchess.engines.utils import parse_move
 
 
 # binary path
@@ -28,13 +28,10 @@ CRAFTY      = '/usr/games/crafty'
 #          a   b   c   d   e   f   g   h
 
 # regular expressions to detect interesting output
-BOARD_RE         = re.compile('^[ \|1-8<>\+\-a-h\.RNBQKP]+$')      # board
-# moves
-ILLEGAL_RE       = re.compile('^Illegal move')                     # illegal
-MYMOVE_RE        = re.compile('Black\(\d+\): [RNBQKP]?[a-h][1-8]') # maching
-# prompts
-WHITE_PROMPT_RE  = re.compile('^White(\d):') # white prompt detection
-BLACK_PROMPT_RE  = re.compile('^Black(\d):') # black prompt detection
+BOARD_RE   = re.compile('^[ \|1-8<>\+\-a-h\.RNBQKP]+$')      # board
+ILLEGAL_RE = re.compile('^Illegal move')                     # illegal
+MYMOVE_RE  = re.compile('Black\(\d+\): [RNBQKP]?[a-h][1-8]') # maching
+PROMPT_RE  = re.compile('^(White|Black)\(\d+\):')            # prompt
 
 
 class Crafty(ChessEngine):
@@ -52,7 +49,6 @@ class Crafty(ChessEngine):
         # Disables thinking on player time. What? who said it was a fair game?
         if not pondering:
             self.write('ponder off')
-        self.prompt_re = WHITE_PROMPT_RE
 
     def display(self):
         """Display method."""
@@ -71,7 +67,6 @@ class Crafty(ChessEngine):
 
     def do_move(self, pos):
         self.write(pos)
-        return self.expect(
-            ((MYMOVE_RE, lambda r: r[-1].split(': ')[-1].strip()),
-             (ILLEGAL_RE, raise_invalid_move),
-             (self.prompt_re, raise_unknow_error)))
+        return self.expect(((MYMOVE_RE, parse_move),
+                            (ILLEGAL_RE, self.illegal),
+                            (PROMPT_RE, self.unknow)))

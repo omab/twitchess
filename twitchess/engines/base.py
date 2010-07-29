@@ -7,15 +7,6 @@ from twitchess.engines.utils import SubProcess
 INVALID_MOVE, UNKNOW_ERROR = 1, 2
 
 
-def raise_invalid_move(*args, **kwargs):
-    """Raises InvalidMove exception"""
-    raise InvalidMove, 'An invalid move was passed'
-
-def raise_unknow_error(*args, **kwargs):
-    """Raises InvalidMove exception"""
-    raise UnknowError, 'An error has ocurred'
-
-
 class ChessEngine(object):
     """Simple Chess Engine Protocol (tm) ;)."""
     def __init__(self, name, path, args=None):
@@ -61,6 +52,12 @@ class ChessEngine(object):
     def read(self):
         """Reads process output"""
         return self.process.read()
+
+    def illegal(self, result):
+        raise InvalidMove, 'An invalid move was passed'
+
+    def unknow(self, result):
+        raise UnknowError, 'An error has ocurred'
 
     def __str__(self):
         """Returns name."""

@@ -102,9 +102,17 @@ class SubProcess(object):
         self._process = None
 
 
+def parse_move(value):
+    """Parses result string usually used by GNUChess and Crafty to get move.
+    Examples:
+        GNUChess: Black (12) : e3
+        Crafty: Black(12): e3
+    """
+    return value[-1].split(':')[-1].strip()
+
 
 def crafty_board(lines):
-    """Convert simple chess board to Crafty richer format."""
+    """Convert simple chess board (like GNUChess) to Crafty richer format."""
     row_sep = '   +---+---+---+---+---+---+---+---+'
     board = [
         ['8  ', '   ', ' . ', '   ', ' . ', '   ', ' . ', '   ', ' . '],

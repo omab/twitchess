@@ -1,8 +1,7 @@
 import re
 
-from twitchess.engines.base import ChessEngine, raise_invalid_move, \
-                                   raise_unknow_error
-from twitchess.engines.utils import crafty_board
+from twitchess.engines.base import ChessEngine
+from twitchess.engines.utils import crafty_board, parse_move
 
 # binary path and arguments
 GNUCHESS = '/usr/games/gnuchess'
@@ -19,18 +18,16 @@ GNUCHESS_ARGS = ['-e']
 #     R N B Q K B N R
 
 # regular expressions to detect interesting output
-BOARD_RE         = re.compile('^[\.rnbqkpRNBQKP ]+$') # board
-ILLEGAL_RE       = re.compile('^Illegal move')        # illegal move
-MYMOVE_RE        = re.compile('^My move is')          # machine move
-WHITE_PROMPT_RE  = re.compile('^White (\d) :')        # white prompt detection
-BLACK_PROMPT_RE  = re.compile('^Black (\d) :')        # black prompt detection
+BOARD_RE   = re.compile('^[\.rnbqkpRNBQKP ]+$')     # board
+ILLEGAL_RE = re.compile('^Illegal move')            # illegal move
+MYMOVE_RE  = re.compile('^My move is')              # machine move
+PROMPT_RE  = re.compile('^(White|Black) \(\d+\) :') # prompt
 
 
 class GNUChess(ChessEngine):
     """GNUChess engine access"""
     def __init__(self, name, pondering=False):
         args = GNUCHESS_ARGS if not pondering else []
-        self.prompt_re = WHITE_PROMPT_RE
         super(GNUChess, self).__init__(name, GNUCHESS, args)
 
     def display(self):
@@ -50,7 +47,6 @@ class GNUChess(ChessEngine):
 
     def do_move(self, pos):
         self.write(pos)
-        return self.expect(
-            ((MYMOVE_RE, lambda r: r[-1].split(' : ')[-1].strip()),
-             (ILLEGAL_RE, raise_invalid_move),
-             (self.prompt_re, raise_unknow_error)))
+        return self.expect(((MYMOVE_RE, parse_move),
+                            (ILLEGAL_RE, self.illegal),
+                            (PROMPT_RE, self.unknow)))
