@@ -55,15 +55,15 @@ class ChessEngine(object):
         """Reads process output"""
         return self.process.read()
 
+    def fen(self):
+        """Returns FEN notation for current board."""
+        raise NotImplementedError
+
     def illegal(self, result):
         raise InvalidMove, 'An invalid move was passed'
 
     def unknow(self, result):
         raise UnknowError, 'An error has ocurred'
-
-    def __str__(self):
-        """Returns name."""
-        return '%s vs. %s' % (self.name, self.path.split(sep)[-1])
 
     def expect(self, regex_mapping):
         """
@@ -80,3 +80,7 @@ class ChessEngine(object):
                 result = filter(regex.findall, lines)
                 if result:
                     return func(result)
+
+    def __str__(self):
+        """Returns name."""
+        return '%s vs. %s' % (self.name, self.path.split(sep)[-1])
