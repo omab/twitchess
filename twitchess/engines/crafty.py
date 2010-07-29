@@ -29,10 +29,12 @@ CRAFTY      = '/usr/games/crafty'
 
 # regular expressions to detect interesting output
 BOARD_RE   = re.compile('^[ \|1-8<>\+\-a-h\.RNBQKP]+$')      # board
+FEN_RE     = re.compile('^setboard .*')                      # FEN
 ILLEGAL_RE = re.compile('^Illegal move')                     # illegal
 MYMOVE_RE  = re.compile('Black\(\d+\): [RNBQKP]?[a-h][1-8]') # maching
-PROMPT_RE  = re.compile('^(White|Black)\(\d+\):')            # prompt
-FEN_RE     = re.compile('^setboard .*')                      # FEN
+WHITE_RE   = '^White\(%d\):'                                 # white prompt
+BLACK_RE   = '^Black\(%d\):'                                 # black prompt
+PROMPT_RE  = WHITE_RE # current prompt (Crafty starts with white for user)
 
 
 class Crafty(ChessEngine):
@@ -69,15 +71,18 @@ class Crafty(ChessEngine):
     def fen(self):
         """Reads FEN notation from Crafty. Appends completes moves at end."""
         self.write('savepos')
+        prompt = re.compile(PROMPT_RE % (len(self.moves) + 1,))
         out = self.expect(((FEN_RE, lambda result: result),
                            (ILLEGAL_RE, self.illegal),
-                           (PROMPT_RE, self.unknow)))
+                           (prompt, self.unknow)))
         if out:
             moves = ' 0 %d' % len(self.moves)
             return out[0].replace('setboard ', '').replace('\n', '') + moves
 
     def do_move(self, pos):
         self.write(pos)
+        # adds 2 becuse it's 1-indexed
+        prompt = re.compile(PROMPT_RE % (len(self.moves) + 2,))
         return self.expect(((MYMOVE_RE, parse_move),
                             (ILLEGAL_RE, self.illegal),
-                            (PROMPT_RE, self.unknow)))
+                            (prompt, self.unknow)))

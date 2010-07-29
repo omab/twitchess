@@ -76,6 +76,7 @@ class ChessEngine(object):
         """
         while self.process.is_alive():
             lines = self.read()
+            print ''.join(lines)
             for regex, func in regex_mapping:
                 result = filter(regex.findall, lines)
                 if result:
