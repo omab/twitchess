@@ -1,5 +1,6 @@
 import re
 
+from twitchess.exceptions import GameError
 from twitchess.engines.base import ChessEngine
 from twitchess.engines.utils import parse_move
 
@@ -34,13 +35,14 @@ ILLEGAL_RE = re.compile('^Illegal move')                     # illegal
 MYMOVE_RE  = re.compile('Black\(\d+\): [RNBQKP]?[a-h][1-8]') # maching
 WHITE_RE   = '^White\(%d\):'                                 # white prompt
 BLACK_RE   = '^Black\(%d\):'                                 # black prompt
-PROMPT_RE  = WHITE_RE # current prompt (Crafty starts with white for user)
 
 
 class Crafty(ChessEngine):
     """Crafty chess engine access"""
-    def __init__(self, name, pondering=False):
-        super(Crafty, self).__init__(name, CRAFTY)
+    def __init__(self, players, pondering=False):
+        super(Crafty, self).__init__(players, CRAFTY)
+        if self.multiplayer:
+            raise GameError, 'multiplayer not supported by Crafty yet'
         # Disable log files (game.xxx and log.xxx files)
         self.write('log off')
         # Disable noise as much as possible while thinking engine move
@@ -71,7 +73,9 @@ class Crafty(ChessEngine):
     def fen(self):
         """Reads FEN notation from Crafty. Appends completes moves at end."""
         self.write('savepos')
-        prompt = re.compile(PROMPT_RE % (len(self.moves) + 1,))
+        prompt = re.compile((WHITE_RE if self.is_white_turn() else BLACK_RE) %
+                                    (len(self.moves) + 1,))
+
         out = self.expect(((FEN_RE, lambda result: result),
                            (ILLEGAL_RE, self.illegal),
                            (prompt, self.unknow)))
@@ -80,9 +84,17 @@ class Crafty(ChessEngine):
             return out[0].replace('setboard ', '').replace('\n', '') + moves
 
     def do_move(self, pos):
-        self.write(pos)
-        # adds 2 becuse it's 1-indexed
-        prompt = re.compile(PROMPT_RE % (len(self.moves) + 2,))
-        return self.expect(((MYMOVE_RE, parse_move),
-                            (ILLEGAL_RE, self.illegal),
-                            (prompt, self.unknow)))
+        # regular expression to detect prompt, adds 2 becuse it's 1-indexed
+        prompt = re.compile((WHITE_RE if self.is_white_turn() else BLACK_RE) %
+                                    (len(self.moves) + 2,))
+
+        if self.multiplayer:
+            expect = [(ILLEGAL_RE, self.illegal), # user introduced an illegal move
+                      (prompt, self.noop)] # prompt reached
+        else:
+            expect = [(MYMOVE_RE, parse_move), # engine move
+                      (ILLEGAL_RE, self.illegal), # user introduced an illegal move
+                      (prompt, self.unknow)] # prompt reached without result
+
+        self.write(pos) # write player move
+        return self.expect(expect)

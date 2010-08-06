@@ -28,14 +28,15 @@ ILLEGAL_RE = re.compile('^Illegal move')                  # illegal move
 MYMOVE_RE  = re.compile('^My move is')                    # machine move
 WHITE_RE   = '^White \(%d\) :'                           # white prompt
 BLACK_RE   = '^Black \(%d\) :'                           # black prompt
-PROMPT_RE  = WHITE_RE # current prompt (GNUChess starts with white for user)
 
 
 class GNUChess(ChessEngine):
     """GNUChess engine access"""
-    def __init__(self, name, pondering=False):
+    def __init__(self, players, pondering=False):
         args = GNUCHESS_ARGS if not pondering else []
-        super(GNUChess, self).__init__(name, GNUCHESS, args)
+        super(GNUChess, self).__init__(players, GNUCHESS, args)
+        if self.multiplayer:
+            self.write('manual') # enter manualmode
 
     def display(self):
         """Reads GNUChess board and converts to ritcher format."""
@@ -73,9 +74,17 @@ class GNUChess(ChessEngine):
             return out
 
     def do_move(self, pos):
-        self.write(pos)
-        # adds 2 becuse it's 1-indexed
-        prompt = re.compile(PROMPT_RE % (len(self.moves) + 2,))
-        return self.expect(((MYMOVE_RE, parse_move),
-                            (ILLEGAL_RE, self.illegal),
-                            (prompt, self.unknow)))
+        # regular expression to detect prompt, adds 2 becuse it's 1-indexed
+        prompt = re.compile((WHITE_RE if self.is_white_turn() else BLACK_RE) %
+                                    (len(self.moves) + 2,))
+
+        if self.multiplayer:
+            expect = [(ILLEGAL_RE, self.illegal), # user introduced an illegal move
+                      (prompt, self.noop)] # prompt reached
+        else:
+            expect = [(MYMOVE_RE, parse_move), # engine move
+                      (ILLEGAL_RE, self.illegal), # user introduced an illegal move
+                      (prompt, self.unknow)] # prompt reached without result
+
+        self.write(pos) # write player move
+        return self.expect(expect)
