@@ -1,0 +1,7 @@
+# t2chess application key/secret
+APP_KEY        = None
+APP_SECRET     = None
+
+# t2chess account key/secret (association to t2chess app)
+ACCOUNT_KEY    = None
+ACCOUNT_SECRET = None
