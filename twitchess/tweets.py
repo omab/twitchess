@@ -3,96 +3,69 @@ from __future__ import with_statement
 import os
 import sys
 import time
-from ConfigParser import ConfigParser, NoOptionError
+import socket
+import simplejson
+from os.path import isdir, stat
+from optparse import OptionParser
 
 import tweepy
 
-
-T2CHESS_DIR_NAME = '.t2chess'
-T2CHESS_DIR_PATH = os.path.join(os.environ['HOME'], T2CHESS_DIR_NAME)
-CONFIG_PATH      = os.path.join(T2CHESS_DIR_PATH, 'config.cfg')
+import settings
 
 
-API            = None
-LASTID         = None
-LASTID_PATH    = None
-CHECK_INTERVAL = 30 # check every 30 seconds by default
+API    = None
+LASTID = None
+SOCKET = None
 
 
-def explain_config():
-    print >>sys.stderr, \
-"""Create a directory %(dir)s with the following files:
-    * config.cfg that must constain directive for program work
-    Example:
-        [keys]
-        APP_KEY = twitter-app-key
-        APP_SECRET = twitter-app-secret
-        ACCOUNT_KEY = account-key
-        ACCOUNT_SECRET = account-secret
-
-        [config]
-        msgid-file = file-name
-        check-iterval = 30
-
-    Keys holds application and account that communicates with the
-    application pair keys provided by twitter and by OAuth
-    authentication mechanism.
-
-    Files hods files names used by the application, currently only
-    msgid which will contain the last message id retrieved and
-    proccesed from twitter account.
-""" % {'dir': T2CHESS_DIR_PATH}
-
-
-def init():
+def init(socket=True):
     """Reads configuration and initializes twitter connection"""
-    if not os.path.isdir(T2CHESS_DIR_PATH) or not os.path.isfile(CONFIG_PATH):
-        explain_config()
+    global API, LASTID, SOCKET
+
+    if not isdir(settings.T2CHESS_DIR_PATH):
+        print >>sys.stderr, '"%s" is not a directory' % \
+                    settings.T2CHESS_DIR_PATH
         sys.exit(1)
 
-    global API, CHECK_INTERVAL, LASTID, LASTID_PATH
+    if socket:
+        try:
+            sstat = os.stat(settings.PLAYQUEUE_SOCKET)
+            if sstat.st_mode & stat.S_IFSOCK != stat.S_IFSOCK:
+                print >>sys.stderr, '"%s" is not a socket' % \
+                            settings.PLAYQUEUE_SOCKET
+                sys.exit(1)
+        except OSError:
+            print >>sys.stderr, '"%s" does not exists' % \
+                        settings.PLAYQUEUE_SOCKET
+            sys.exit(1)
 
-    config = ConfigParser()
-    config.read(CONFIG_PATH)
-
-    try: # read config (keys and paths)
-        app_key = config.get('keys', 'APP_KEY')
-        app_secret = config.get('keys', 'APP_SECRET')
-        acc_key = config.get('keys', 'ACCOUNT_KEY')
-        acc_secret = config.get('keys', 'ACCOUNT_SECRET')
-        LASTID_PATH = config.get('config', 'msgid-file')
-    except NoOptionError, e:
-        explain_config()
-        print >>sys.stderr, e.message
-        sys.exit(1)
-    
-    try: # override check interval time
-        CHECK_INTERVAL = int(config.get('config', 'check-interval'))
-    except (ValueError, NoOptionError):
-        pass
+        SOCKET = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        SOCKET.connect(settings.PLAYQUEUE_SOCKET)
 
     # read last message id retrieved or None to start from beggining
     try:
-        with open(LASTID_PATH, 'r') as fobj:
+        with open(settings.LASTMSGID_FILE, 'r') as fobj:
             try:
                 LASTID = int(fobj.readline())
             except ValueError:
                 LASTID = None
     except IOError: # file does not exist
-        open(LASTID_PATH, 'w').close()
+        open(settings.LASTMSGID_FILE, 'w').close()
         LASTID = None
 
-    auth = tweepy.OAuthHandler(app_key, app_secret)
-    auth.set_access_token(acc_key, acc_secret)
+    auth = tweepy.OAuthHandler(settings.APP_KEY, settings.APP_SECRET)
+    auth.set_access_token(settings.ACCOUNT_KEY, settings.ACCOUNT_SECRET)
     API = tweepy.API(auth)
     return API
 
 
 def store_lastid(message):
-    """Stores last message id in LASTID_PATH file and in LASTID variable"""
-    global LASTID_PATH, LASTID
+    """Stores last message id in settings.LASTMSGID_FILE file and in LASTID
+    variable.
+    """
+    global LASTID
     LASTID = message.id
-    with open(LASTID_PATH, 'w') as fobj:
+    with open(settings.LASTMSGID_FILE, 'w') as fobj:
         fobj.writelines([str(message.id)])
 
 
@@ -114,7 +87,13 @@ def store_lastid(message):
 #                                         #gameid
 
 def process_message(msg):
+    """Process incoming messages, passes message to playqueue server
+    using SOCKET, data sent is JSON."""
+    global SOCKET
     print '    %s: %s (%s)' % (msg.user.name, msg.text, msg.id)
+    if SOCKET:
+        SOCKET.send(simplejson.dumps({'user': msg.user.name,
+                                      'msg': msg.text}))
 
 
 def get_messages():
@@ -131,12 +110,23 @@ def get_messages():
                     store_lastid(msg)
                     process_message(msg)
             print 'Checked for messages > ' + last_id
-            time.sleep(CHECK_INTERVAL)
+            time.sleep(settings.CHECK_INTERVAL)
         except KeyboardInterrupt:
             print 'Interrupted'
             end = True
 
+def end():
+    """Closes socket"""
+    if SOCKET:
+        SOCKET.close()
 
 if __name__ == '__main__':
-    init()
+    parser = OptionParser(usage='%prog [options]')
+    parser.add_option('--nosocket', help='Disables socket support', 
+                      action='store_false', dest='nosocket',
+                      default=True)
+    options, args = parser.parse_args()
+
+    init(socket=options.nosocket)
     get_messages()
+    end()
