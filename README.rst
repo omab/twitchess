@@ -1,4 +1,5 @@
 twitchess, play chess from twitter
+
 Copyright (C) 2010 Matias Aguirre <matiasaguirre@gmail.com>
 
 
